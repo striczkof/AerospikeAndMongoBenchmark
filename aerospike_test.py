@@ -1,3 +1,4 @@
+# by Alvin, made within 1 hour lmao
 import random
 import aerospike
 import time
@@ -9,7 +10,7 @@ NS_COL_NAME = 'test'
 # Number of times to perform multiple CRUD operations
 NUM_ITERATIONS = 100
 # Number of times mass CRUD operations will be performed
-MASS_CRUD_ITERATIONS = 1000
+MASS_CRUD_ITERATIONS = 500
 # Host IP address
 HOST = '192.168.0.3'
 # Port number
@@ -57,36 +58,47 @@ def create(is_mass: bool) -> float:
     return 1000000 * (time.time() - start_time)
 
 def read(is_mass: bool) -> float:
+    # Preloading bulk keys
+    if is_mass:
+        bulk_keys = []
+        for i in range(random.randint(1, 1000), MASS_CRUD_ITERATIONS + 1): # Literally just get random keys
+            bulk_keys.append((NS_COL_NAME, 'key', i))
     global key_counter
     start_time = time.time()
     # Database specific code starts here
     if is_mass: # Mass read, literally just read everything
-        pass
+        client.get_many(bulk_keys)
     else: # Single read, read a single key from 1 to key_counter
-        pass
+        client.get((NS_COL_NAME, 'key', random.randint(1, key_counter)))
     # Database specific code ends here
     return 1000000 * (time.time() - start_time)
 
 def update(is_mass: bool) -> float:
+    # Preloading write policy
+    update_policy = {'exists': aerospike.POLICY_EXISTS_UPDATE}
+    global client
     global key_counter
     start_time = time.time()
     # Database specific code starts here
     if is_mass: # Mass update, literally just update everything
         pass
     else: # Single update, find a random key from 1 to key_counter and update it
-        pass
+        client.put((NS_COL_NAME, 'key', range(1, key_counter)), {'number': random.randint(0, 1000000)})
     # Database specific code ends here
     return 1000000 * (time.time() - start_time)
 
 def delete(is_mass: bool) -> float:
+    global client
     global key_counter
     start_time = time.time()
     # Database specific code starts here
     if is_mass: # Mass delete, delete key_counter to key_counter - MASS_CRUD_ITERATIONS
-        for i in reversed(range(key_counter - MASS_CRUD_ITERATIONS + 1, key_counter + 1)):
-            pass
+        for i in reversed(range(key_counter - MASS_CRUD_ITERATIONS + 1, key_counter)):
+            client.remove((NS_COL_NAME, 'key', i))
+        key_counter = key_counter - MASS_CRUD_ITERATIONS
     else: # Single delete last key
-        pass
+        client.remove((NS_COL_NAME, 'key', key_counter))
+        key_counter = key_counter - 1
     # Database specific code ends here
     return 1000000 * (time.time() - start_time)
 

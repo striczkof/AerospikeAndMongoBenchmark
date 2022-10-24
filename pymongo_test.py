@@ -1,3 +1,5 @@
+# by Alvin, made within 1 hour lmao
+import random
 import pymongo
 import time
 
@@ -8,7 +10,7 @@ NS_COL_NAME = 'test'
 # Number of times to perform multiple CRUD operations
 NUM_ITERATIONS = 100
 # Number of times mass CRUD operations will be performed
-MASS_CRUD_ITERATIONS = 1000
+MASS_CRUD_ITERATIONS = 500
 # Host IP address
 HOST = '192.168.0.3'
 # Port number
@@ -33,21 +35,26 @@ def connect() -> float:
 def wipe_close() -> float:
     start_time = time.time()
     # Database specific code starts here
-    client['test']['test'].drop()
+    client['db'][NS_COL_NAME].drop()
     client.close()
     # Database specific code ends here
     return 1000000 * (time.time() - start_time)
 
 # CRUD operation functions start here
 def create(is_mass: bool) -> float:
+    # Preloading bulk data
+    if is_mass:
+        bulk_data = []
+        for i in range(1, MASS_CRUD_ITERATIONS + 1):
+            bulk_data.append({'key': i, 'name': 'testName', 'number': random.randint(0, 1000000)})
     global key_counter
     start_time = time.time()
     # Database specific code starts here
     if is_mass: # Mass create
-        for i in range(key_counter + 1, MASS_CRUD_ITERATIONS + 1):
-            pass
+        client['db'][NS_COL_NAME].insert_many(bulk_data)
         key_counter = key_counter + MASS_CRUD_ITERATIONS
     else: # Single create
+        client['db'][NS_COL_NAME].insert_one({'key': key_counter + 1, 'name': 'testName', 'number': random.randint(0, 1000000)})
         key_counter = key_counter + 1
 
     # Database specific code ends here
@@ -121,26 +128,26 @@ def main():
     print('Performing mass CRUD operations...')
     print('Creating...')
     create_mass_times = []
-    for _i in range(MASS_CRUD_ITERATIONS):
+    for _i in range(NUM_ITERATIONS):
         create_mass_times.append(create(True))
     print('Reading...')
     read_mass_times = []
-    for _i in range(MASS_CRUD_ITERATIONS):
+    for _i in range(NUM_ITERATIONS):
         read_mass_times.append(read(True))
     print('Updating...')
     update_mass_times = []
-    for _i in range(MASS_CRUD_ITERATIONS):
+    for _i in range(NUM_ITERATIONS):
         update_mass_times.append(update(True))
     print('Deleting...')
     delete_mass_times = []
-    for _i in range(MASS_CRUD_ITERATIONS):
+    for _i in range(NUM_ITERATIONS):
         delete_mass_times.append(delete(True))
     print('Cleaning up and closing...')
     wipe_close_time = wipe_close()
     # Output results
     print('\n\n\n')
-    print(f'Connection time: {round(connect_time, 5)} microseconds')
-    print(f'Clean up and close time: {round(wipe_close_time, 5)} microseconds')
+    print(f'Connection time: {round(connect_time / 1000000, 5)} seconds')
+    print(f'Clean up and close time: {round(wipe_close_time / 1000000, 5)} seconds')
     print(f'Average single create time: {round(sum(create_single_times) / len(create_single_times), 5)} microseconds')
     print(f'Average single read time: {round(sum(read_single_times) / len(read_single_times), 5)} microseconds')
     print(f'Average single update time: {round(sum(update_single_times) / len(update_single_times), 5)} microseconds')
