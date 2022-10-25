@@ -1,4 +1,4 @@
-# by Alvin, made within 1 hour lmao
+# by Alvin, made within 3 hour lmao
 import random
 import aerospike
 import time
@@ -10,7 +10,7 @@ NS_COL_NAME = 'test'
 # Number of times to perform multiple CRUD operations
 NUM_ITERATIONS = 100
 # Number of times mass CRUD operations will be performed
-MASS_CRUD_ITERATIONS = 500
+MASS_CRUD_ITERATIONS = 250
 # Host IP address
 HOST = '192.168.0.3'
 # Port number
@@ -19,6 +19,18 @@ PORT = 3000
 client = None
 # Global key counter variable
 key_counter = 0
+
+# In case of emergency, set this to True
+# DID IT DIE? PURGE EVERYTHING, STUPID CODER!
+DIED = False
+# DIED = True
+
+def purge() -> float:
+    global client
+    print('Purging everything...')
+    client.truncate(NS_COL_NAME, None, 0)
+    client.close()
+    exit(0)
 
 # All the functions must return the elapsed time in microseconds
 
@@ -47,12 +59,16 @@ def create(is_mass: bool) -> float:
     start_time = time.time()
     # Database specific code starts here
     if is_mass: # Mass create
+        print(key_counter)
         for i in range(key_counter + 1, MASS_CRUD_ITERATIONS + 1):
             client.put((NS_COL_NAME, 'key', i), {'name': 'John Doe', 'num': random.randint(0, 1000000)})
+            print(i)
+            print('boom')
         key_counter = key_counter + MASS_CRUD_ITERATIONS
+        print('pow')
     else: # Single create
-        client.put((NS_COL_NAME, 'key', key_counter + 1), {'name': 'test_name', 'number': random.randint(0, 1000000)})
         key_counter = key_counter + 1
+        client.put((NS_COL_NAME, 'key', key_counter), {'name': 'test_name', 'number': random.randint(0, 1000000)})
 
     # Database specific code ends here
     return 1000000 * (time.time() - start_time)
@@ -63,13 +79,12 @@ def read(is_mass: bool) -> float:
         bulk_keys = []
         for i in range(random.randint(1, 1000), MASS_CRUD_ITERATIONS + 1): # Literally just get random keys
             bulk_keys.append((NS_COL_NAME, 'key', i))
-    global key_counter
     start_time = time.time()
     # Database specific code starts here
     if is_mass: # Mass read, literally just read everything
         client.get_many(bulk_keys)
     else: # Single read, read a single key from 1 to key_counter
-        client.get((NS_COL_NAME, 'key', random.randint(1, key_counter)))
+        client.get((NS_COL_NAME, 'key', 5))
     # Database specific code ends here
     return 1000000 * (time.time() - start_time)
 
@@ -83,7 +98,7 @@ def update(is_mass: bool) -> float:
     if is_mass: # Mass update, literally just update everything
         pass
     else: # Single update, find a random key from 1 to key_counter and update it
-        client.put((NS_COL_NAME, 'key', range(1, key_counter)), {'number': random.randint(0, 1000000)})
+        pass #client.put((NS_COL_NAME, 'key', range(1, key_counter)), {'number': random.randint(0, 1000000)})
     # Database specific code ends here
     return 1000000 * (time.time() - start_time)
 
@@ -93,9 +108,11 @@ def delete(is_mass: bool) -> float:
     start_time = time.time()
     # Database specific code starts here
     if is_mass: # Mass delete, delete key_counter to key_counter - MASS_CRUD_ITERATIONS
-        for i in reversed(range(key_counter - MASS_CRUD_ITERATIONS + 1, key_counter)):
-            client.remove((NS_COL_NAME, 'key', i))
-        key_counter = key_counter - MASS_CRUD_ITERATIONS
+        #for i in reversed(range((key_counter - MASS_CRUD_ITERATIONS) + 1, key_counter + 1)):
+        #    print(i)
+        #    client.remove((NS_COL_NAME, 'key', i))
+        #key_counter = key_counter - MASS_CRUD_ITERATIONS
+        pass
     else: # Single delete last key
         client.remove((NS_COL_NAME, 'key', key_counter))
         key_counter = key_counter - 1
@@ -114,7 +131,8 @@ def main():
     # Here we go!
     print(f'Connecting to {DB_NAME} server...')
     connect_time = connect()
-    print(f'Connection time: {connect_time} microseconds')
+    if DIED:
+        purge()
     print('The namespace or collection should exist already.')
     print('Performing single CRUD operations...')
     print('Creating...')
@@ -161,9 +179,9 @@ def main():
     print(f'Average single update time: {round(sum(update_single_times) / len(update_single_times), 5)} microseconds')
     print(f'Average single delete time: {round(sum(delete_single_times) / len(delete_single_times), 5)} microseconds')
     print(f'Average mass create time: {round(sum(create_mass_times) / len(create_mass_times), 5)} microseconds')
-    print(f'Average mass read time: {round(sum(read_mass_times) / len(read_mass_times), 5)} microseconds')
-    print(f'Average mass update time: {round(sum(update_mass_times) / len(update_mass_times), 5)} microseconds')
-    print(f'Average mass delete time: {round(sum(delete_mass_times) / len(delete_mass_times), 5)} microseconds')
+    print(f'Average mass read time: {round(sum(read_mass_times) / len(read_mass_times), 5)} microseconds ')
+    print(f'Average mass update time: {round(sum(update_mass_times) / len(update_mass_times), 5)} microseconds -disabled')
+    print(f'Average mass delete time: {round(sum(delete_mass_times) / len(delete_mass_times), 5)} microseconds -disabled')
     print('Done!')
     
 

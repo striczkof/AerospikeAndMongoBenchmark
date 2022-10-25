@@ -1,4 +1,4 @@
-# by Alvin, made within 1 hour lmao
+# by Alvin, made within 3 hour lmao
 import random
 import pymongo
 import time

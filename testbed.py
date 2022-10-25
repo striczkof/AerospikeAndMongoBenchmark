@@ -5,14 +5,9 @@ import aerospike
 client.put('test', 'test2', {'name': 'test'})
 print(client)
 client.close()"""
+key_counter = 10000
 
-host = '192.168.0.3'
-port = '27017'
-
-client = pymongo.MongoClient('mongodb://' + host + ':' + port)
-print(client)
-db = client['test']
-col = db['test2']
-client['test']['test2'].insert_one({'name': 'test', 'number': 1})
-client['test']['test2'].drop()
-client.close()
+for i in range(key_counter + 1, 250 + 1):
+    print(i)
+key_counter = key_counter + 250
+print(key_counter)
