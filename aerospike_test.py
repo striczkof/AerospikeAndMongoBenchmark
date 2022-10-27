@@ -1,7 +1,9 @@
 # by Alvin, made within 3 hour lmao
 import random
-import aerospike
 import time
+
+import aerospike
+from aerospike_helpers.operations import operations as op
 
 # Database name constant
 DB_NAME = 'Aerospike'
@@ -32,6 +34,28 @@ def purge() -> float:
     client.close()
     exit(0)
 
+# Assistant function to preload random bulk keys
+def generate_bulk_keys() -> list:
+    bulk_keys = []
+    for _i in range(MASS_CRUD_ITERATIONS):
+        bulk_keys.append((NS_COL_NAME, 'key', random.randint(1, key_counter)))
+    return bulk_keys
+
+# Assistant function to generate ordered bulk keys
+def generate_bulk_keys_from_current(current_key: int, forward: bool) -> list:
+    bulk_keys = []
+    if forward:
+        start = current_key + 1
+        end = (current_key + 1) + MASS_CRUD_ITERATIONS
+        inc = 1
+    else:
+        start = (current_key + 1) - MASS_CRUD_ITERATIONS
+        end = current_key
+        inc = -1
+    for i in range(start, end + inc):
+        bulk_keys.append((NS_COL_NAME, 'key', i))
+    return bulk_keys
+
 # All the functions must return the elapsed time in microseconds
 
 # Database connection function
@@ -56,16 +80,16 @@ def wipe_close() -> float:
 # CRUD operation functions start here
 def create(is_mass: bool) -> float:
     global key_counter
+    # Preloading bulk keys
+    if is_mass:
+        bulk_keys = generate_bulk_keys_from_current(key_counter, True)
+        # Prepare batch operations and policy
+        batch_operations = [op.write('name', 'John Doe'), op.write('num', random.randint(0, 1000000))]
     start_time = time.time()
     # Database specific code starts here
     if is_mass: # Mass create
-        print(key_counter)
-        for i in range(key_counter + 1, MASS_CRUD_ITERATIONS + 1):
-            client.put((NS_COL_NAME, 'key', i), {'name': 'John Doe', 'num': random.randint(0, 1000000)})
-            print(i)
-            print('boom')
+        client.batch_operate(bulk_keys, batch_operations)
         key_counter = key_counter + MASS_CRUD_ITERATIONS
-        print('pow')
     else: # Single create
         key_counter = key_counter + 1
         client.put((NS_COL_NAME, 'key', key_counter), {'name': 'test_name', 'number': random.randint(0, 1000000)})
@@ -74,44 +98,53 @@ def create(is_mass: bool) -> float:
     return 1000000 * (time.time() - start_time)
 
 def read(is_mass: bool) -> float:
-    # Preloading bulk keys
     if is_mass:
-        bulk_keys = []
-        for i in range(random.randint(1, 1000), MASS_CRUD_ITERATIONS + 1): # Literally just get random keys
-            bulk_keys.append((NS_COL_NAME, 'key', i))
+        # Preloading bulk keys
+        bulk_keys = generate_bulk_keys()
+    else:
+        # Preload random key
+        random_key = (NS_COL_NAME, 'key', random.randint(1, key_counter))
     start_time = time.time()
     # Database specific code starts here
     if is_mass: # Mass read, literally just read everything
         client.get_many(bulk_keys)
     else: # Single read, read a single key from 1 to key_counter
-        client.get((NS_COL_NAME, 'key', 5))
+        client.get(random_key)
     # Database specific code ends here
     return 1000000 * (time.time() - start_time)
 
 def update(is_mass: bool) -> float:
+    # Preloading bulk keys
+    if is_mass:
+        bulk_keys = generate_bulk_keys()
+        # Prepare batch operations and policy
+        batch_operations = [op.write('name', 'John Doe'), op.write('num', random.randint(0, 1000000))]
+    else:
+        # Preload random key
+        random_key = (NS_COL_NAME, 'key', random.randint(1, key_counter))
     # Preloading write policy
     update_policy = {'exists': aerospike.POLICY_EXISTS_UPDATE}
     global client
-    global key_counter
     start_time = time.time()
     # Database specific code starts here
     if is_mass: # Mass update, literally just update everything
-        pass
+        client.batch_operate(bulk_keys, batch_operations, update_policy)
     else: # Single update, find a random key from 1 to key_counter and update it
-        pass #client.put((NS_COL_NAME, 'key', range(1, key_counter)), {'number': random.randint(0, 1000000)})
+        client.put(random_key, {'number': random.randint(0, 1000000)})
     # Database specific code ends here
     return 1000000 * (time.time() - start_time)
 
 def delete(is_mass: bool) -> float:
-    global client
     global key_counter
+    # Preloading bulk keys from key_counter - (MASS_CRUD_ITERATIONS - 1) to key_counter
+    if is_mass:
+        bulk_keys = generate_bulk_keys_from_current(key_counter, False)
+    global client
     start_time = time.time()
     # Database specific code starts here
     if is_mass: # Mass delete, delete key_counter to key_counter - MASS_CRUD_ITERATIONS
-        #for i in reversed(range((key_counter - MASS_CRUD_ITERATIONS) + 1, key_counter + 1)):
-        #    print(i)
-        #    client.remove((NS_COL_NAME, 'key', i))
-        #key_counter = key_counter - MASS_CRUD_ITERATIONS
+        client.batch_remove(bulk_keys)
+        key_counter = key_counter - MASS_CRUD_ITERATIONS
         pass
     else: # Single delete last key
         client.remove((NS_COL_NAME, 'key', key_counter))
@@ -151,6 +184,7 @@ def main():
     delete_single_times = []
     for _i in range(NUM_ITERATIONS):
         delete_single_times.append(delete(False))
+    print(f'Current key counter: {key_counter}')
     print('Performing mass CRUD operations...')
     print('Creating...')
     create_mass_times = []
@@ -172,6 +206,7 @@ def main():
     wipe_close_time = wipe_close()
     # Output results
     print('\n\n\n')
+    print(f'Benchmark results for {DB_NAME} with {NUM_ITERATIONS} iterations and mass operations performed for {MASS_CRUD_ITERATIONS} records:')
     print(f'Connection time: {round(connect_time / 1000000, 5)} seconds')
     print(f'Clean up and close time: {round(wipe_close_time / 1000000, 5)} seconds')
     print(f'Average single create time: {round(sum(create_single_times) / len(create_single_times), 5)} microseconds')
@@ -180,11 +215,9 @@ def main():
     print(f'Average single delete time: {round(sum(delete_single_times) / len(delete_single_times), 5)} microseconds')
     print(f'Average mass create time: {round(sum(create_mass_times) / len(create_mass_times), 5)} microseconds')
     print(f'Average mass read time: {round(sum(read_mass_times) / len(read_mass_times), 5)} microseconds ')
-    print(f'Average mass update time: {round(sum(update_mass_times) / len(update_mass_times), 5)} microseconds -disabled')
-    print(f'Average mass delete time: {round(sum(delete_mass_times) / len(delete_mass_times), 5)} microseconds -disabled')
+    print(f'Average mass update time: {round(sum(update_mass_times) / len(update_mass_times), 5)} microseconds')
+    print(f'Average mass delete time: {round(sum(delete_mass_times) / len(delete_mass_times), 5)} microseconds')
     print('Done!')
-    
-
 
 if __name__ == '__main__':
     main()
